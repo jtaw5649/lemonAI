@@ -65,6 +65,16 @@ export const commands = [
         .setRequired(false);
     }),
   new SlashCommandBuilder()
+    .setName("gif")
+    .setDescription("Send a GIF/image URL.")
+    .addStringOption((option) =>
+      option
+        .setName("url")
+        .setDescription("Direct GIF/image URL or Discord/Tenor/Giphy media URL.")
+        .setRequired(true)
+        .setMaxLength(1000)
+    ),
+  new SlashCommandBuilder()
     .setName("reset")
     .setDescription("Clear lemonAI memory for this channel."),
   new SlashCommandBuilder()

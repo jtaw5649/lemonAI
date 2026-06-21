@@ -10,6 +10,7 @@ type ChatInput = {
   prompt: string;
   authorName: string;
   history: MemoryMessage[];
+  styleContext?: string;
   images?: ChatImageInput[];
 };
 
@@ -71,8 +72,9 @@ export class AiClient {
     const scopedPrompt = [
       `Current speaker: ${input.authorName}`,
       "Reply to the current speaker. Do not target unrelated usernames from channel history unless the current prompt explicitly asks about them.",
+      input.styleContext ?? "",
       prompt
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: input.systemPrompt },
       ...input.history.map(toChatMessage),

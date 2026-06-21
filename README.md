@@ -9,9 +9,11 @@ Built to be a chaotic shitposting/troll bot without being a moderation nightmare
 - `/chat` for OpenCode Go-powered replies with OpenRouter fallback.
 - `/chat image:` and mention/reply image inspection using vision models.
 - `/image` for Pollinations image generation, including `adult:true` for `safe=false/private=true` generation.
+- `/gif url:` for posting GIF/image URLs without Tenor/Giphy API keys.
 - `/autopost` for scheduled channel chat/image/both posting.
 - Discord-safe image delivery as file-only image attachments.
 - Discord attachment, pasted media URL, and GIF-picker embed recognition.
+- Dynamic per-channel style telemetry from recent memory, used for cadence only and not persisted separately.
 - Mention/name-triggered replies when `AUTO_REPLY_ENABLED=true`.
 - Reply-to-bot triggered replies when `AUTO_REPLY_ENABLED=true`.
 - Per-channel rolling memory saved to `data/memory.json`.
@@ -61,7 +63,7 @@ Vision fallback defaults to `OPENROUTER_VISION_MODEL=nvidia/nemotron-nano-12b-v2
 
 Images work anonymously through `https://image.pollinations.ai/prompt`. The bot downloads the generated image and sends it as a Discord file attachment, so `/image` returns just the image with no prompt text or embed wrapper. Set `adult:true` to use Pollinations `safe=false` and `private=true`. Optional: set `POLLINATIONS_TOKEN`, `POLLINATIONS_USE_TOKEN=true`, and `POLLINATIONS_NOLOGO=true` from `https://auth.pollinations.ai` for authenticated/no-logo attempts; anonymous turbo/flux fallbacks remain enabled for reliability.
 
-Discord's built-in GIF picker posts GIFs as embeds such as `gifv`, not normal attachments. lemonAI can inspect those embeds when replying/mentioning. Discord does not expose the client GIF picker as a bot API, and Tenor API keys are being discontinued, so there is no `/gif` search command.
+Discord's built-in GIF picker posts GIFs as embeds such as `gifv`, not normal attachments. lemonAI can inspect those embeds when replying/mentioning. Discord does not expose the client GIF picker as a bot API, and Tenor API keys are being discontinued, so `/gif` accepts a URL instead of doing API search. Direct GIF/image URLs are sent as embeds; Tenor/Giphy page links are posted raw so Discord can unfurl them.
 
 ## Run Locally
 
@@ -94,6 +96,7 @@ docker run --env-file .env -v "$(pwd)/data:/app/data" lemonai
 - `/chat prompt:<text> image:<optional> private:<true|false>`: ask lemonAI something, optionally with an image.
 - Reply to an image/GIF with `@lemonAI is this ai?` to inspect it.
 - `/image prompt:<text> aspect_ratio:<optional> adult:<optional>`: generate an image.
+- `/gif url:<gif-or-image-url>`: post a GIF/image URL.
 - `/autopost set mode:<chat|image|both> interval_minutes:<number> prompt:<optional> aspect_ratio:<optional>`: schedule channel posts.
 - `/autopost status`: show this channel's schedule.
 - `/autopost off`: disable this channel's schedule.

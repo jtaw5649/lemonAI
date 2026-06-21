@@ -4,6 +4,7 @@ import {
   AttachmentBuilder,
   ChatInputCommandInteraction,
   Client,
+  EmbedBuilder,
   Events,
   GatewayIntentBits,
   Message,
@@ -15,7 +16,7 @@ import { config, redactSecrets } from "./config.js";
 import { AiClient, type ChatImageInput, type GeneratedImage } from "./ai-client.js";
 import { logger } from "./logger.js";
 import { type AutoPostConfig, type AutoPostMode, MemoryStore } from "./memory.js";
-import { buildSystemPrompt } from "./persona.js";
+import { buildChannelStyle, buildSystemPrompt } from "./persona.js";
 import { CooldownBucket, formatRemaining } from "./rate-limit.js";
 
 const memory = new MemoryStore(config.memoryPath, config.maxHistoryMessages);
@@ -61,6 +62,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         break;
       case "image":
         await handleImageCommand(interaction);
+        break;
+      case "gif":
+        await handleGifCommand(interaction);
         break;
       case "reset":
         await handleResetCommand(interaction);
@@ -112,6 +116,7 @@ client.on(Events.MessageCreate, async (message) => {
       prompt,
       authorName: displayName(message),
       history: memory.get(message.channelId),
+      styleContext: buildChannelStyle(memory.get(message.channelId)),
       images
     });
     await sendChunkedReply(message, response);
@@ -165,12 +170,13 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction): Prom
     : interaction.user.username;
 
   const response = await ai.chat({
-    systemPrompt,
-    prompt,
-    authorName,
-    history: privateReply ? [] : memory.get(interaction.channelId),
-    images
-  });
+      systemPrompt,
+      prompt,
+      authorName,
+      history: privateReply ? [] : memory.get(interaction.channelId),
+      styleContext: privateReply ? undefined : buildChannelStyle(memory.get(interaction.channelId)),
+      images
+    });
 
   await editChunkedInteraction(interaction, response, privateReply);
 
@@ -203,6 +209,17 @@ async function handleImageCommand(interaction: ChatInputCommandInteraction): Pro
   await interaction.deferReply();
   const image = await ai.image(prompt, aspectRatio, { adult });
   await editImageReply(interaction, image);
+}
+
+async function handleGifCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  const url = interaction.options.getString("url", true).trim();
+  const mediaUrl = parseMediaUrl(url);
+  if (!mediaUrl) {
+    await interaction.reply({ content: "that is not a usable gif/image url", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await replyWithMedia(interaction, mediaUrl);
 }
 
 async function handleResetCommand(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -273,6 +290,7 @@ async function handleHelpCommand(interaction: ChatInputCommandInteraction): Prom
       `**${config.botName}**`,
       "`/chat prompt:` chaotic reply; add `image:` to inspect an image",
       "`/image prompt:` Pollinations image; `adult:true` uses safe=false/private=true",
+      "`/gif url:` send a GIF/image URL",
       "Reply to image/GIF embeds or attach an image to `/chat` for vision.",
       "`/autopost set mode:both interval_minutes:30` scheduled channel brainrot",
       "`/reset` wipe this channel's memory",
@@ -344,8 +362,11 @@ function imageInputsFromEmbeds(embeds?: Message["embeds"]): ChatImageInput[] {
   return (embeds ?? []).flatMap((embed) => {
     const urls = [
       embed.image?.url,
+      embed.image?.proxyURL,
       embed.thumbnail?.url,
+      embed.thumbnail?.proxyURL,
       embed.video?.url,
+      embed.video?.proxyURL,
       embed.url
     ].filter((url): url is string => typeof url === "string" && looksLikeMediaUrl(url));
     return urls.map((url) => ({ url, detail: "auto" as const }));
@@ -361,6 +382,32 @@ function imageInputsFromText(content: string): ChatImageInput[] {
 
 function looksLikeMediaUrl(value: string): boolean {
   return /\.(?:png|jpe?g|webp|gif)(?:[?#].*)?$/i.test(value) || /(?:tenor\.com|media\.tenor\.com|giphy\.com|media\.giphy\.com|cdn\.discordapp\.com|media\.discordapp\.net)/i.test(value);
+}
+
+function looksLikeDirectMediaUrl(value: string): boolean {
+  return /\.(?:png|jpe?g|webp|gif)(?:[?#].*)?$/i.test(value) || /(?:media\.tenor\.com|media\.giphy\.com|cdn\.discordapp\.com|media\.discordapp\.net)/i.test(value);
+}
+
+function parseMediaUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return looksLikeMediaUrl(url.toString()) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function mediaEmbed(url: string): EmbedBuilder {
+  return new EmbedBuilder().setImage(url);
+}
+
+async function replyWithMedia(interaction: ChatInputCommandInteraction, url: string): Promise<void> {
+  if (looksLikeDirectMediaUrl(url)) {
+    await interaction.reply({ embeds: [mediaEmbed(url)] });
+    return;
+  }
+  await interaction.reply(url);
 }
 
 function displayName(message: Message): string {
@@ -394,7 +441,7 @@ async function sendChunkedReply(message: Message, text: string): Promise<void> {
 }
 
 function canSend(channel: unknown): channel is {
-  send: (content: string | { content?: string; files?: AttachmentBuilder[] }) => Promise<unknown>;
+  send: (content: string | { content?: string; embeds?: EmbedBuilder[]; files?: AttachmentBuilder[] }) => Promise<unknown>;
   sendTyping?: () => Promise<unknown>;
 } {
   return typeof (channel as { send?: unknown }).send === "function";
@@ -427,7 +474,8 @@ async function runAutoPosts(): Promise<void> {
           systemPrompt,
           prompt: buildAutoPostChatPrompt(autopost),
           authorName: config.botName,
-          history: memory.get(channelId)
+          history: memory.get(channelId),
+          styleContext: buildChannelStyle(memory.get(channelId))
         });
         await channel.send(response);
         memory.remember(channelId, {
@@ -443,7 +491,8 @@ async function runAutoPosts(): Promise<void> {
           systemPrompt,
           prompt: buildAutoPostImagePrompt(autopost),
           authorName: config.botName,
-          history: memory.get(channelId)
+          history: memory.get(channelId),
+          styleContext: buildChannelStyle(memory.get(channelId))
         });
         const image = await ai.image(imagePrompt, autopost.aspectRatio);
         await sendImageToChannel(channel, image);
@@ -497,16 +546,16 @@ async function editImageReply(interaction: ChatInputCommandInteraction, image: G
     await withTimeout(interaction.editReply({ files: [imageAttachment(image)] }), discordUploadTimeoutMs, "Discord image upload timed out");
   } catch (error) {
     logger.warn("image attachment upload failed, falling back to source URL", { error: redactSecrets(error) });
-    await interaction.editReply({ content: image.sourceUrl, files: [] });
+    await interaction.editReply({ embeds: [mediaEmbed(image.sourceUrl)], files: [] });
   }
 }
 
-async function sendImageToChannel(channel: { send: (content: string | { files?: AttachmentBuilder[] }) => Promise<unknown> }, image: GeneratedImage): Promise<void> {
+async function sendImageToChannel(channel: { send: (content: string | { embeds?: EmbedBuilder[]; files?: AttachmentBuilder[] }) => Promise<unknown> }, image: GeneratedImage): Promise<void> {
   try {
     await withTimeout(channel.send({ files: [imageAttachment(image)] }), discordUploadTimeoutMs, "Discord image upload timed out");
   } catch (error) {
     logger.warn("image channel upload failed, falling back to source URL", { error: redactSecrets(error) });
-    await channel.send(image.sourceUrl);
+    await channel.send({ embeds: [mediaEmbed(image.sourceUrl)] });
   }
 }
 
