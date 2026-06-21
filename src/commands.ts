@@ -20,7 +20,7 @@ export const aspectRatios = [
 export const commands = [
   new SlashCommandBuilder()
     .setName("chat")
-    .setDescription("Ask lemonAI for a chaotic reply, optionally with an image.")
+    .setDescription("Ask lemonAI for a reply, optionally with an image.")
     .addStringOption((option) =>
       option
         .setName("prompt")
@@ -42,7 +42,7 @@ export const commands = [
     ),
   new SlashCommandBuilder()
     .setName("image")
-    .setDescription("Generate a Pollinations shitpost image.")
+    .setDescription("Generate a Venice lustify-v8 image.")
     .addStringOption((option) =>
       option
         .setName("prompt")
@@ -61,22 +61,39 @@ export const commands = [
     .addBooleanOption((option) => {
       return option
         .setName("adult")
-        .setDescription("Generate with Pollinations safe=false/private=true.")
+        .setDescription("Generate with Venice safe_mode=false.")
         .setRequired(false);
     }),
   new SlashCommandBuilder()
     .setName("gif")
-    .setDescription("Send a GIF/image URL.")
+    .setDescription("Send a saved server GIF by query.")
     .addStringOption((option) =>
       option
-        .setName("url")
-        .setDescription("Direct GIF/image URL or Discord/Tenor/Giphy media URL.")
+        .setName("query")
+        .setDescription("GIF query. URLs still work as a fallback.")
         .setRequired(true)
         .setMaxLength(1000)
     ),
   new SlashCommandBuilder()
-    .setName("reset")
-    .setDescription("Clear lemonAI memory for this channel."),
+    .setName("emote")
+    .setDescription("Post a matching server emoji.")
+    .addStringOption((option) =>
+      option
+        .setName("query")
+        .setDescription("Emoji name/query.")
+        .setRequired(true)
+        .setMaxLength(100)
+    ),
+  new SlashCommandBuilder()
+    .setName("sticker")
+    .setDescription("Post a matching server sticker.")
+    .addStringOption((option) =>
+      option
+        .setName("query")
+        .setDescription("Sticker name/tag/query.")
+        .setRequired(true)
+        .setMaxLength(100)
+    ),
   new SlashCommandBuilder()
     .setName("autopost")
     .setDescription("Configure automatic lemonAI posting for this channel.")
@@ -106,7 +123,7 @@ export const commands = [
         .addStringOption((option) =>
           option
             .setName("prompt")
-            .setDescription("Optional vibe/instructions. Empty means infer from channel memory.")
+            .setDescription("Optional instructions. Empty means infer from channel memory.")
             .setRequired(false)
             .setMaxLength(1500)
         )

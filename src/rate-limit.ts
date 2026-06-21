@@ -3,10 +3,15 @@ export class CooldownBucket {
 
   constructor(private readonly cooldownMs: number) {}
 
-  take(key: string, now = Date.now()): number {
+  remaining(key: string, now = Date.now()): number {
     if (this.cooldownMs === 0) return 0;
     const last = this.lastSeen.get(key) ?? 0;
-    const remaining = last + this.cooldownMs - now;
+    return Math.max(0, last + this.cooldownMs - now);
+  }
+
+  take(key: string, now = Date.now()): number {
+    if (this.cooldownMs === 0) return 0;
+    const remaining = this.remaining(key, now);
     if (remaining > 0) return remaining;
     this.lastSeen.set(key, now);
     this.cleanup(now);

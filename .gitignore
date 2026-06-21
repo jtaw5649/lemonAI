@@ -3,8 +3,6 @@ dist/
 data/
 .env
 !.env.example
-
-
-# MemPalace per-project files (issue #185)
+.serena/
 mempalace.yaml
 entities.json
