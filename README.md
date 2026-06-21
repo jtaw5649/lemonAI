@@ -1,15 +1,21 @@
 # lemonAI
 
-Discord chat and image generation bot powered by OpenRouter free models and Pollinations.
+Discord chat and image generation bot powered by OpenCode Go/OpenRouter chat and Pollinations images.
 
 Built to be a chaotic shitposting/troll bot without being a moderation nightmare: it roasts, riffs, and memes, but the system prompt blocks doxxing, slurs, targeted harassment, self-harm encouragement, sexual minors content, and illegal instructions.
 
 ## Features
 
-- `/chat` for OpenRouter-powered replies.
-- `/image` for Pollinations image generation.
+- `/chat` for OpenCode Go-powered replies with OpenRouter fallback.
+- `/chat image:` and mention/reply image inspection using vision models.
+- `/image` for Pollinations image generation, including `adult:true` for `safe=false/private=true` generation.
+- `/autopost` for scheduled channel chat/image/both posting.
+- Discord-safe image delivery as file-only image attachments.
+- Discord attachment, pasted media URL, and GIF-picker embed recognition.
 - Mention/name-triggered replies when `AUTO_REPLY_ENABLED=true`.
+- Reply-to-bot triggered replies when `AUTO_REPLY_ENABLED=true`.
 - Per-channel rolling memory saved to `data/memory.json`.
+- Per-channel autopost settings saved to `data/memory.json`.
 - Per-user, per-channel, and image cooldowns.
 - Slash command deploy script for guild or global commands.
 - Dockerfile for production deploys.
@@ -23,18 +29,39 @@ Built to be a chaotic shitposting/troll bot without being a moderation nightmare
 5. Invite the bot with scopes `bot` and `applications.commands`.
 6. Bot permissions needed: `Send Messages`, `Use Slash Commands`, `Attach Files`, `Read Message History`.
 
+## OpenCode Go Setup
+
+OpenCode Go is the primary chat backend. It uses an OpenAI-compatible endpoint and does not provide image generation in the docs/model catalogs checked.
+
+Set:
+
+```env
+OPENCODE_GO_API_KEY=
+OPENCODE_GO_BASE_URL=https://opencode.ai/zen/go/v1
+OPENCODE_GO_MODEL=mimo-v2.5-pro
+OPENCODE_GO_FALLBACK_MODELS=qwen3.7-plus,minimax-m3,glm-5.2
+OPENCODE_GO_VISION_MODEL=
+OPENCODE_GO_VISION_FALLBACK_MODELS=
+```
+
+OpenCode Go stays the final chat/persona voice. If you configure `OPENCODE_GO_VISION_MODEL`, it is tried first for image/GIF understanding. Otherwise OpenRouter vision provides visual facts and OpenCode Go writes the final reply.
+
 ## OpenRouter Setup
 
-Create an OpenRouter API key and set `OPENROUTER_API_KEY`. The bot defaults to:
+OpenRouter remains the fallback if OpenCode Go fails or rate-limits. Create an OpenRouter API key and set `OPENROUTER_API_KEY`. The bot defaults to:
 
 - Chat base URL: `https://openrouter.ai/api/v1`
 - Chat model: `openrouter/free`
 
-Override `OPENROUTER_MODEL` with any OpenRouter `:free` model if you want a specific one.
+Override `OPENROUTER_MODEL` with any OpenRouter `:free` model if you want a specific fallback.
+
+Vision fallback defaults to `OPENROUTER_VISION_MODEL=nvidia/nemotron-nano-12b-v2-vl:free`. OpenRouter supports image URLs/base64 and content types including `image/gif`; Discord attachments, pasted GIF/image URLs, and GIF-picker embeds are passed through when available.
 
 ## Pollinations Setup
 
-Images work anonymously through `https://image.pollinations.ai/prompt`, but anonymous mode is slower and may watermark images. Optional: set `POLLINATIONS_TOKEN` from `https://auth.pollinations.ai` for higher limits.
+Images work anonymously through `https://image.pollinations.ai/prompt`. The bot downloads the generated image and sends it as a Discord file attachment, so `/image` returns just the image with no prompt text or embed wrapper. Set `adult:true` to use Pollinations `safe=false` and `private=true`. Optional: set `POLLINATIONS_TOKEN`, `POLLINATIONS_USE_TOKEN=true`, and `POLLINATIONS_NOLOGO=true` from `https://auth.pollinations.ai` for authenticated/no-logo attempts; anonymous turbo/flux fallbacks remain enabled for reliability.
+
+Discord's built-in GIF picker posts GIFs as embeds such as `gifv`, not normal attachments. lemonAI can inspect those embeds when replying/mentioning. Discord does not expose the client GIF picker as a bot API, and Tenor API keys are being discontinued, so there is no `/gif` search command.
 
 ## Run Locally
 
@@ -64,10 +91,16 @@ docker run --env-file .env -v "$(pwd)/data:/app/data" lemonai
 
 ## Commands
 
-- `/chat prompt:<text> private:<true|false>`: ask lemonAI something.
-- `/image prompt:<text> aspect_ratio:<optional>`: generate an image.
+- `/chat prompt:<text> image:<optional> private:<true|false>`: ask lemonAI something, optionally with an image.
+- Reply to an image/GIF with `@lemonAI is this ai?` to inspect it.
+- `/image prompt:<text> aspect_ratio:<optional> adult:<optional>`: generate an image.
+- `/autopost set mode:<chat|image|both> interval_minutes:<number> prompt:<optional> aspect_ratio:<optional>`: schedule channel posts.
+- `/autopost status`: show this channel's schedule.
+- `/autopost off`: disable this channel's schedule.
 - `/reset`: clear the current channel memory.
 - `/help`: show quick usage.
+
+Autopost uses persisted `nextRunAt` timestamps in `data/memory.json`, one-shot scheduler wakeups, jitter, and stale-job skipping. It does not run a blind fixed interval loop.
 
 ## Channel Controls
 

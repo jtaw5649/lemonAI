@@ -11,9 +11,20 @@ export type BotConfig = {
   openRouterApiKey?: string;
   openRouterBaseUrl: string;
   openRouterModel: string;
+  openRouterFallbackModels: string[];
+  openRouterVisionModel: string;
+  openRouterVisionFallbackModels: string[];
   openRouterSiteUrl?: string;
   openRouterAppName: string;
+  openCodeGoApiKey?: string;
+  openCodeGoBaseUrl: string;
+  openCodeGoModel: string;
+  openCodeGoFallbackModels: string[];
+  openCodeGoVisionModel?: string;
+  openCodeGoVisionFallbackModels: string[];
   pollinationsToken?: string;
+  pollinationsUseToken: boolean;
+  pollinationsNoLogo: boolean;
   pollinationsImageBaseUrl: string;
   pollinationsImageModel: string;
   autoReplyEnabled: boolean;
@@ -30,6 +41,9 @@ export type BotConfig = {
   imageAspectRatio: string;
   imageWidth: number;
   imageHeight: number;
+  imageTimeoutMs: number;
+  autoPostJitterPercent: number;
+  autoPostMaxLateMs: number;
   logLevel: LogLevel;
 };
 
@@ -89,6 +103,10 @@ function csvEnv(name: string): Set<string> {
   return new Set(values);
 }
 
+function csvListEnv(name: string): string[] {
+  return [...csvEnv(name)];
+}
+
 function logLevelEnv(): LogLevel {
   const raw = optional("LOG_LEVEL", "info").toLowerCase() as LogLevel;
   if (!logLevels.has(raw)) {
@@ -109,11 +127,22 @@ export const config: BotConfig = {
   openRouterApiKey: optionalUndefined("OPENROUTER_API_KEY"),
   openRouterBaseUrl: normalizeBaseUrl(optional("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")),
   openRouterModel: optional("OPENROUTER_MODEL", "openrouter/free"),
+  openRouterFallbackModels: csvListEnv("OPENROUTER_FALLBACK_MODELS"),
+  openRouterVisionModel: optional("OPENROUTER_VISION_MODEL", "nvidia/nemotron-nano-12b-v2-vl:free"),
+  openRouterVisionFallbackModels: csvListEnv("OPENROUTER_VISION_FALLBACK_MODELS"),
   openRouterSiteUrl: optionalUndefined("OPENROUTER_SITE_URL"),
   openRouterAppName: optional("OPENROUTER_APP_NAME", "lemonAI"),
+  openCodeGoApiKey: optionalUndefined("OPENCODE_GO_API_KEY"),
+  openCodeGoBaseUrl: normalizeBaseUrl(optional("OPENCODE_GO_BASE_URL", "https://opencode.ai/zen/go/v1")),
+  openCodeGoModel: optional("OPENCODE_GO_MODEL", "mimo-v2.5-pro"),
+  openCodeGoFallbackModels: csvListEnv("OPENCODE_GO_FALLBACK_MODELS"),
+  openCodeGoVisionModel: optionalUndefined("OPENCODE_GO_VISION_MODEL"),
+  openCodeGoVisionFallbackModels: csvListEnv("OPENCODE_GO_VISION_FALLBACK_MODELS"),
   pollinationsToken: optionalUndefined("POLLINATIONS_TOKEN"),
+  pollinationsUseToken: boolEnv("POLLINATIONS_USE_TOKEN", false),
+  pollinationsNoLogo: boolEnv("POLLINATIONS_NOLOGO", false),
   pollinationsImageBaseUrl: normalizeBaseUrl(optional("POLLINATIONS_IMAGE_BASE_URL", "https://image.pollinations.ai/prompt")),
-  pollinationsImageModel: optional("POLLINATIONS_IMAGE_MODEL", "flux"),
+  pollinationsImageModel: optional("POLLINATIONS_IMAGE_MODEL", "turbo"),
   autoReplyEnabled: boolEnv("AUTO_REPLY_ENABLED", true),
   allowedChannelIds: csvEnv("ALLOWED_CHANNEL_IDS"),
   ignoredChannelIds: csvEnv("IGNORED_CHANNEL_IDS"),
@@ -128,12 +157,15 @@ export const config: BotConfig = {
   imageAspectRatio: optional("IMAGE_ASPECT_RATIO", "1:1"),
   imageWidth: intEnv("IMAGE_WIDTH", 1024, 256, 2048),
   imageHeight: intEnv("IMAGE_HEIGHT", 1024, 256, 2048),
+  imageTimeoutMs: intEnv("IMAGE_TIMEOUT_MS", 120000, 10000, 300000),
+  autoPostJitterPercent: intEnv("AUTO_POST_JITTER_PERCENT", 20, 0, 90),
+  autoPostMaxLateMs: intEnv("AUTO_POST_MAX_LATE_MS", 300000, 0, 86400000),
   logLevel: logLevelEnv()
 };
 
 export function redactSecrets(value: unknown): string {
   let text = value instanceof Error ? value.message : String(value);
-  for (const secret of [config.discordToken, config.openRouterApiKey, config.pollinationsToken]) {
+  for (const secret of [config.discordToken, config.openRouterApiKey, config.openCodeGoApiKey, config.pollinationsToken]) {
     if (secret) text = text.split(secret).join("[redacted]");
   }
   return text;
